@@ -7,7 +7,7 @@ fn sum_two(numbers: &Vec<u16>) -> Option<u64> {
     for j in numbers {
         for k in numbers {
             if j + k == 2020 {
-                return Some((*j as u64) * (*k as u64))
+                return Some((*j as u64) * (*k as u64));
             }
         }
     }
@@ -19,7 +19,7 @@ fn sum_three(numbers: &Vec<u16>) -> Option<u64> {
         for k in numbers {
             for l in numbers {
                 if j + k + l == 2020 {
-                    return Some((*j as u64) * (*k as u64) * (*l as u64))
+                    return Some((*j as u64) * (*k as u64) * (*l as u64));
                 }
             }
         }
@@ -36,11 +36,14 @@ fn main() -> io::Result<()> {
     let f = fs::File::open(&args[1])?;
     let reader = io::BufReader::new(f);
 
-    let numbers: Vec<u16> = reader.lines()
-      .map(|l|
-        l.expect("failed to read line")
-        .parse().expect("failed to parse line as u16")
-      ).collect();
+    let numbers: Vec<u16> = reader
+        .lines()
+        .map(|l| {
+            l.expect("failed to read line")
+                .parse()
+                .expect("failed to parse line as u16")
+        })
+        .collect();
 
     if let Some(s) = sum_two(&numbers) {
         println!("{}", s);
@@ -55,5 +58,4 @@ fn main() -> io::Result<()> {
     }
 
     Ok(())
-
 }
