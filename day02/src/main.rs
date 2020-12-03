@@ -5,11 +5,13 @@ use std::io;
 use std::io::BufRead;
 use std::str::FromStr;
 
-fn split_line(s: &str) -> Result<Captures, String> {
-    let re = Regex::new(r"(\d+)-(\d+)\s+([a-z]):\s+([a-z]+)")
-        .map_err(|_| String::from("failed to create regex"))?;
+use once_cell::sync::OnceCell;
 
-    let caps = re
+static RE: OnceCell<Regex> = OnceCell::new();
+
+fn split_line(s: &str) -> Result<Captures, String> {
+    let caps = RE
+        .get_or_init(|| Regex::new(r"(\d+)-(\d+)\s+([a-z]):\s+([a-z]+)").unwrap())
         .captures(s)
         .ok_or_else(|| format!("regex failed to find captures any line: '{}'", s))?;
 
