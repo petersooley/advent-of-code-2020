@@ -3,7 +3,7 @@ use std::fs;
 use std::io;
 use std::io::BufRead;
 
-fn sum_two(numbers: &Vec<u16>) -> Option<u64> {
+fn sum_two(numbers: &[u16]) -> Option<u64> {
     for j in numbers {
         for k in numbers {
             if j + k == 2020 {
@@ -14,7 +14,7 @@ fn sum_two(numbers: &Vec<u16>) -> Option<u64> {
     None
 }
 
-fn sum_three(numbers: &Vec<u16>) -> Option<u64> {
+fn sum_three(numbers: &[u16]) -> Option<u64> {
     for j in numbers {
         for k in numbers {
             for l in numbers {

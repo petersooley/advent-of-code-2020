@@ -106,7 +106,7 @@ fn by_index(entry: &PasswordEntry) -> Option<()> {
     if l != r && (l == entry.target || r == entry.target) {
         return Some(());
     }
-    return None;
+    None
 }
 
 fn main() -> io::Result<()> {
