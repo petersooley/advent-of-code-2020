@@ -1,6 +1,5 @@
 use std::io::BufRead;
-use std::{env, fs, io, fmt};
-
+use std::{env, fmt, fs, io};
 
 struct Slope {
     right: usize,
@@ -11,14 +10,26 @@ struct Slope {
 impl Slope {
     fn new(right: usize, down: usize) -> Self {
         assert!(right > 0 && down > 0);
-        Self { right, down, trees: 0 }
+        Self {
+            right,
+            down,
+            trees: 0,
+        }
     }
 
     fn scan(&mut self, l: &str, row: usize) {
         if row == 0 || row % self.down != 0 {
-            return
+            println!("skip row: {}", row);
+            return;
         }
 
+        println!(
+            "row: {}, pos: {}, index: {}, char: {}",
+            row,
+            row * self.right,
+            (row * self.right) % l.len(),
+            l.chars().nth((row * self.right) % l.len()).unwrap()
+        );
         // off-by-one works out just fine here since starting point is 1,1
         if l.chars().nth((row * self.right) % l.len()).unwrap() == '#' {
             self.trees += 1;
@@ -64,4 +75,80 @@ fn main() -> io::Result<()> {
     println!("product: {}", product);
 
     Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::iter::Enumerate;
+
+    fn sample() -> Vec<&'static str> {
+        vec![
+            "..##.......",
+            "#...#...#..",
+            ".#....#..#.",
+            "..#.#...#.#",
+            ".#...##..#.",
+            "..#.##.....",
+            ".#.#.#....#",
+            ".#........#",
+            "#.##...#...",
+            "#...##....#",
+            ".#..#...#.#",
+        ]
+    }
+
+    #[test]
+    fn test_r1d1() {
+        let mut s = Slope::new(1, 1);
+        for (row, line) in sample().iter().enumerate() {
+            s.scan(line, row)
+        }
+
+        assert_eq!(2, s.trees);
+    }
+
+    #[test]
+    fn test_r3d1() {
+        let mut s = Slope::new(3, 1);
+        for (row, line) in sample().iter().enumerate() {
+            s.scan(line, row)
+        }
+
+        assert_eq!(7, s.trees);
+    }
+
+
+    #[test]
+    fn test_r5d1() {
+        let mut s = Slope::new(5, 1);
+        for (row, line) in sample().iter().enumerate() {
+            s.scan(line, row)
+        }
+
+        assert_eq!(3, s.trees);
+    }
+
+
+    #[test]
+    fn test_r7d1() {
+        let mut s = Slope::new(7, 1);
+        for (row, line) in sample().iter().enumerate() {
+            s.scan(line, row)
+        }
+
+        assert_eq!(4, s.trees);
+    }
+
+    #[test]
+    fn test_r1d2() {
+        let mut s = Slope::new(1, 2);
+        for (row, line) in sample().iter().enumerate() {
+            s.scan(line, row)
+        }
+
+        assert_eq!(2, s.trees);
+    }
+
+
 }
