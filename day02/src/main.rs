@@ -1,25 +1,14 @@
-use regex::{Captures, Regex};
 use std::env;
 use std::fs;
 use std::io;
 use std::io::BufRead;
 use std::str::FromStr;
 
-use once_cell::sync::OnceCell;
-
-static RE: OnceCell<Regex> = OnceCell::new();
-
-fn split_line(s: &str) -> Result<Captures, String> {
-    let caps = RE
-        .get_or_init(|| Regex::new(r"(\d+)-(\d+)\s+([a-z]):\s+([a-z]+)").unwrap())
-        .captures(s)
-        .ok_or_else(|| format!("regex failed to find captures any line: '{}'", s))?;
-
-    if caps.len() == 0 {
-        return Err(format!("not enough captures found in line: '{}'", s));
-    }
-
-    Ok(caps)
+macro_rules! regex {
+    ($re:literal $(,)?) => {{
+        static RE: once_cell::sync::OnceCell<regex::Regex> = once_cell::sync::OnceCell::new();
+        RE.get_or_init(|| regex::Regex::new($re).unwrap())
+    }};
 }
 
 #[derive(Debug)]
@@ -48,7 +37,13 @@ impl FromStr for PasswordEntry {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let caps = split_line(s)?;
+        let caps = regex!(r"(\d+)-(\d+)\s+([a-z]):\s+([a-z]+)")
+            .captures(s)
+            .ok_or_else(|| format!("regex failed to find captures any line: '{}'", s))?;
+
+        if caps.len() == 0 {
+            return Err(format!("not enough captures found in line: '{}'", s));
+        }
 
         let left = caps
             .get(1)
