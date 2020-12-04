@@ -5,7 +5,6 @@ struct Slope {
     right: usize,
     down: usize,
     trees: usize,
-    scans: usize,
 }
 
 impl Slope {
@@ -14,21 +13,33 @@ impl Slope {
         Self {
             right,
             down,
-            scans: 0,
             trees: 0,
         }
     }
 
-    fn scan(&mut self, l: &str, row: usize) {
+    /// I had to break this down a bit. Ultimately, we are looking for the index of the target
+    /// character in our current line (with some modulo magic because the lines are infinitely
+    /// repeated rightward). We _could_ add together all the characters we've scanned over from
+    /// each iteration or we could do math (basic algebra).
+    ///
+    /// First, we skip any rows that we know are irrelevant (including the first row, since that's
+    /// where we start).
+    ///
+    /// Then we need to figure out which relevant row we're on: `row / self.down`. This is a factor
+    /// we can multiply by `self.right` to figure out how far we need to look in our current line to
+    /// get the target character. If down is `2`, then the first relevant row is `2` and
+    /// `2 / 2 = 1`, the second relevant row is `4` and `4 / 2 = 2`, and so on.
+    fn scan(&mut self, line: &str, row: usize) {
         if row == 0 || row % self.down != 0 {
             return;
         }
 
-        // keep track of which iteration we're at (of relevant rows)
-        self.scans += 1;
-
-        // off-by-one works out just fine here since starting point is 1,1
-        if l.chars().nth((self.scans * self.right) % l.len()).unwrap() == '#' {
+        if line
+            .chars()
+            .nth(((row / self.down) * self.right) % line.len())
+            .unwrap()
+            == '#'
+        {
             self.trees += 1;
         }
     }
@@ -77,7 +88,6 @@ fn main() -> io::Result<()> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::iter::Enumerate;
 
     fn sample() -> Vec<&'static str> {
         vec![
