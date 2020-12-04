@@ -5,6 +5,7 @@ struct Slope {
     right: usize,
     down: usize,
     trees: usize,
+    scans: usize,
 }
 
 impl Slope {
@@ -13,25 +14,21 @@ impl Slope {
         Self {
             right,
             down,
+            scans: 0,
             trees: 0,
         }
     }
 
     fn scan(&mut self, l: &str, row: usize) {
         if row == 0 || row % self.down != 0 {
-            println!("skip row: {}", row);
             return;
         }
 
-        println!(
-            "row: {}, pos: {}, index: {}, char: {}",
-            row,
-            row * self.right,
-            (row * self.right) % l.len(),
-            l.chars().nth((row * self.right) % l.len()).unwrap()
-        );
+        // keep track of which iteration we're at (of relevant rows)
+        self.scans += 1;
+
         // off-by-one works out just fine here since starting point is 1,1
-        if l.chars().nth((row * self.right) % l.len()).unwrap() == '#' {
+        if l.chars().nth((self.scans * self.right) % l.len()).unwrap() == '#' {
             self.trees += 1;
         }
     }
@@ -118,7 +115,6 @@ mod test {
         assert_eq!(7, s.trees);
     }
 
-
     #[test]
     fn test_r5d1() {
         let mut s = Slope::new(5, 1);
@@ -128,7 +124,6 @@ mod test {
 
         assert_eq!(3, s.trees);
     }
-
 
     #[test]
     fn test_r7d1() {
@@ -149,6 +144,4 @@ mod test {
 
         assert_eq!(2, s.trees);
     }
-
-
 }
