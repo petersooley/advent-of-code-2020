@@ -1,5 +1,6 @@
 use std::io::BufRead;
 use std::{cmp, env, fs, io};
+use std::collections::BTreeSet;
 
 fn seat_id(row: u8, col: u8) -> u16 {
     (row as u16 * 8) + col as u16
@@ -23,7 +24,7 @@ fn main() -> io::Result<()> {
     let f = fs::File::open(&filename)?;
     let reader = io::BufReader::new(f);
 
-    let seat_ids: Vec<u16> = reader
+    let seat_ids: BTreeSet<u16> = reader
         .lines()
         .map(|l| {
             let line = l.expect("failed to read line");
@@ -33,9 +34,20 @@ fn main() -> io::Result<()> {
         .collect();
 
     let max_seat_id = seat_ids.iter()
-        .fold(0 as u16, |max, seat_id| cmp::max(max, *seat_id));
+        .fold(0_u16, |max, &seat_id| cmp::max(max, seat_id));
+    println!("max seat id: {}", max_seat_id);
 
-    println!("Max seat id: {}", max_seat_id);
+    let mut prev: u16 = 0;
+    let mut iter = seat_ids.into_iter().peekable();
+
+    while let Some(seat_id) = iter.next() {
+        if let Some(next) = iter.peek() {
+            if next - 1 != seat_id {
+                println!("missing: {}", next - 1);
+            }
+        }
+        prev = seat_id
+    }
 
     Ok(())
 }
