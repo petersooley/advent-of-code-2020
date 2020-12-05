@@ -14,13 +14,19 @@ impl Passport {
     }
 
     pub fn add_entries_from_line(&mut self, line: &str) {
-        line.split(' ').filter(|e| e.len() > 0).for_each(|e| self.add_entry(e));
+        line.split(' ')
+            .filter(|e| !e.is_empty())
+            .for_each(|e| self.add_entry(e));
     }
 
     fn add_entry(&mut self, entry: &str) {
         let mut parts = entry.split(':');
-        let key = parts.next().expect(format!("invalid entry key format: '{}'", entry).as_str());
-        let val = parts.next().expect(format!("invalid entry val format: '{}'", entry).as_str());
+        let key = parts
+            .next()
+            .expect(format!("invalid entry key format: '{}'", entry).as_str());
+        let val = parts
+            .next()
+            .expect(format!("invalid entry val format: '{}'", entry).as_str());
 
         if !Self::valid_required_key(key) {
             // just skipping invalid keys (including "cid")
@@ -73,17 +79,19 @@ impl Passport {
             "hcl" => v
                 .strip_prefix("#")
                 .and_then(|c| {
-                    if c.chars().all(|ch| ch.is_ascii_digit() || ch.is_ascii_lowercase()) {
-                        return u32::from_str_radix(c, 16).ok()
+                    if c.chars()
+                        .all(|ch| ch.is_ascii_digit() || ch.is_ascii_lowercase())
+                    {
+                        return u32::from_str_radix(c, 16).ok();
                     }
                     None
                 })
                 .map(|b| b <= 16777215)
                 .unwrap_or(false),
             "ecl" => matches!(
-                    v.as_str(),
-                    "amb" | "blu" | "brn" | "gry" | "grn" | "hzl" | "oth"
-                ),
+                v.as_str(),
+                "amb" | "blu" | "brn" | "gry" | "grn" | "hzl" | "oth"
+            ),
             "pid" => v.len() == 9 && v.chars().all(|c| c.is_ascii_digit()),
             _ => false,
         })
