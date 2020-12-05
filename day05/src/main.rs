@@ -1,6 +1,6 @@
+use std::collections::BTreeSet;
 use std::io::BufRead;
 use std::{cmp, env, fs, io};
-use std::collections::BTreeSet;
 
 fn seat_id(row: u8, col: u8) -> u16 {
     (row as u16 * 8) + col as u16
@@ -33,7 +33,8 @@ fn main() -> io::Result<()> {
         })
         .collect();
 
-    let max_seat_id = seat_ids.iter()
+    let max_seat_id = seat_ids
+        .iter()
         .fold(0_u16, |max, &seat_id| cmp::max(max, seat_id));
     println!("max seat id: {}", max_seat_id);
 
@@ -43,6 +44,8 @@ fn main() -> io::Result<()> {
     while let Some(seat_id) = iter.next() {
         if let Some(next) = iter.peek() {
             if next - 1 != seat_id {
+                // just listing the missing items for now,
+                // should calculate the before/after check
                 println!("missing: {}", next - 1);
             }
         }
@@ -51,7 +54,6 @@ fn main() -> io::Result<()> {
 
     Ok(())
 }
-
 
 #[cfg(test)]
 mod test {
