@@ -13,14 +13,14 @@ impl Passport {
         }
     }
 
-    fn add_entries_from_line(&mut self, line: &str) {
-        line.split(' ').for_each(|entry| self.add_entry(entry));
+    pub fn add_entries_from_line(&mut self, line: &str) {
+        line.split(' ').filter(|e| e.len() > 0).for_each(|e| self.add_entry(e));
     }
 
     fn add_entry(&mut self, entry: &str) {
         let mut parts = entry.split(':');
-        let key = parts.next().expect("invalid entry format: key");
-        let val = parts.next().expect("invalid entry format: val");
+        let key = parts.next().expect(format!("invalid entry key format: '{}'", entry).as_str());
+        let val = parts.next().expect(format!("invalid entry val format: '{}'", entry).as_str());
 
         if !Self::valid_required_key(key) {
             // just skipping invalid keys (including "cid")
@@ -34,61 +34,72 @@ impl Passport {
         matches!(key, "byr" | "iyr" | "eyr" | "hgt" | "hcl" | "ecl" | "pid")
     }
 
-    fn has_sufficient_entries(&self) -> bool {
+    pub fn has_sufficient_entries(&self) -> bool {
         self.entries.len() == 7
     }
 
-    fn has_valid_entries(&self) -> bool {
-        self.has_sufficient_entries()
-            && self.entries.iter().all(|(k, v)| match k.as_str() {
-                "byr" => v
-                    .parse::<usize>()
-                    .map(|y| y >= 1920 && y <= 2020)
-                    .unwrap_or(false),
-                "iyr" => v
-                    .parse::<usize>()
-                    .map(|y| y >= 2010 && y <= 2020)
-                    .unwrap_or(false),
-                "eyr" => v
-                    .parse::<usize>()
-                    .map(|y| y >= 2020 && y <= 2030)
-                    .unwrap_or(false),
-                "hgt" => {
-                    if let Some(hstr) = v.strip_suffix("cm") {
-                        return hstr
-                            .parse::<usize>()
-                            .map(|h| h >= 150 && h <= 193)
-                            .unwrap_or(false);
-                    } else if let Some(hstr) = v.strip_suffix("in") {
-                        return hstr
-                            .parse::<usize>()
-                            .map(|h| h >= 59 && h <= 76)
-                            .unwrap_or(false);
-                    }
-                    false
+    pub fn has_valid_entries(&self) -> bool {
+        self.has_sufficient_entries() && self.all_entries_valid()
+    }
+
+    fn all_entries_valid(&self) -> bool {
+        self.entries.iter().all(|(k, v)| match k.as_str() {
+            "byr" => v
+                .parse::<usize>()
+                .map(|y| y >= 1920 && y <= 2002)
+                .unwrap_or(false),
+            "iyr" => v
+                .parse::<usize>()
+                .map(|y| y >= 2010 && y <= 2020)
+                .unwrap_or(false),
+            "eyr" => v
+                .parse::<usize>()
+                .map(|y| y >= 2020 && y <= 2030)
+                .unwrap_or(false),
+            "hgt" => {
+                if let Some(hstr) = v.strip_suffix("cm") {
+                    return hstr
+                        .parse::<usize>()
+                        .map(|h| h >= 150 && h <= 193)
+                        .unwrap_or(false);
+                } else if let Some(hstr) = v.strip_suffix("in") {
+                    return hstr
+                        .parse::<usize>()
+                        .map(|h| h >= 59 && h <= 76)
+                        .unwrap_or(false);
                 }
-                "hcl" => v
-                    .strip_prefix("#")
-                    .and_then(|c| u32::from_str_radix(c, 16).ok())
-                    .map(|b| b <= 16777215)
-                    .unwrap_or(false),
-                "ecl" => matches!(
+                false
+            }
+            "hcl" => v
+                .strip_prefix("#")
+                .and_then(|c| {
+                    if c.chars().all(|ch| ch.is_ascii_digit() || ch.is_ascii_lowercase()) {
+                        return u32::from_str_radix(c, 16).ok()
+                    }
+                    None
+                })
+                .map(|b| b <= 16777215)
+                .unwrap_or(false),
+            "ecl" => matches!(
                     v.as_str(),
                     "amb" | "blu" | "brn" | "gry" | "grn" | "hzl" | "oth"
                 ),
-                "pid" => v.len() == 9 && v.chars().all(|c| c.is_numeric()),
-                _ => false,
-            })
+            "pid" => v.len() == 9 && v.chars().all(|c| c.is_ascii_digit()),
+            _ => false,
+        })
     }
 }
 
 impl fmt::Display for Passport {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.has_sufficient_entries() {
-            write!(f, "valid:   ({}) {:?}", self.entries.len(), self.entries)
+        let status = if self.has_valid_entries() {
+            "valid:     "
+        } else if self.has_sufficient_entries() {
+            "sufficient:"
         } else {
-            write!(f, "invalid: ({}) {:?}", self.entries.len(), self.entries)
-        }
+            "invalid:   "
+        };
+        write!(f, "{} ({}) {:?}", status, self.entries.len(), self.entries)
     }
 }
 
@@ -99,7 +110,8 @@ fn main() -> io::Result<()> {
     let reader = io::BufReader::new(f);
 
     let mut cur_passport = Passport::new();
-    let mut valid_passports = 0;
+    let mut sufficient_entries = 0;
+    let mut valid_entries = 0;
     let mut total_passports = 0;
 
     let lines = reader.lines().map(|l| l.expect("failed to read line"));
@@ -107,7 +119,10 @@ fn main() -> io::Result<()> {
         if line.is_empty() {
             total_passports += 1;
             if cur_passport.has_sufficient_entries() {
-                valid_passports += 1;
+                sufficient_entries += 1;
+            }
+            if cur_passport.has_valid_entries() {
+                valid_entries += 1;
             }
             println!("{}", cur_passport);
 
@@ -120,13 +135,20 @@ fn main() -> io::Result<()> {
     // don't forget the last one!
     total_passports += 1;
     if cur_passport.has_sufficient_entries() {
-        valid_passports += 1;
+        sufficient_entries += 1;
+    }
+    if cur_passport.has_valid_entries() {
+        valid_entries += 1;
     }
     println!("{}", cur_passport);
 
     println!(
-        "{} of {} passports are valid",
-        valid_passports, total_passports
+        "{} of {} passports have sufficient entries.",
+        sufficient_entries, total_passports
+    );
+    println!(
+        "{} of {} passports have valid entries.",
+        valid_entries, total_passports
     );
 
     Ok(())
@@ -135,6 +157,12 @@ fn main() -> io::Result<()> {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    fn validate_entry(entry: &str) -> bool {
+        let mut p = Passport::new();
+        p.add_entry(entry);
+        p.entries.len() == 1 && p.all_entries_valid()
+    }
 
     fn sample_1() -> Vec<&'static str> {
         vec![
@@ -263,5 +291,75 @@ mod test {
         // p.add_entry("hgt:183cm");
         // p.add_entry("cid:147");
         assert!(!p.has_sufficient_entries());
+    }
+
+    #[test]
+    fn test_validation_byr() {
+        assert!(validate_entry("byr:2002"));
+        assert!(!validate_entry("byr:2002x"));
+        assert!(!validate_entry("byr:x2002"));
+        assert!(!validate_entry("byr:2003"));
+        assert!(!validate_entry("byr:19999"));
+        assert!(validate_entry("byr:1920"));
+        assert!(!validate_entry("byr:1919"));
+    }
+
+    #[test]
+    fn test_validation_iyr() {
+        assert!(validate_entry("iyr:2010"));
+        assert!(validate_entry("iyr:2020"));
+        assert!(!validate_entry("iyr:2021"));
+        assert!(!validate_entry("iyr:202*"));
+        assert!(!validate_entry("iyr:2009"));
+        assert!(!validate_entry("iyr:20009"));
+    }
+
+    #[test]
+    fn test_validation_eyr() {
+        assert!(validate_entry("eyr:2020"));
+        assert!(validate_entry("eyr:2030"));
+        assert!(!validate_entry("eyr:20300"));
+        assert!(!validate_entry("eyr:"));
+        // assert!(!validate_entry("eyr")); // not an issue with this dataset
+        assert!(!validate_entry("eyr:2031"));
+        assert!(!validate_entry("eyr:2019"));
+    }
+
+    #[test]
+    fn test_validation_hgt() {
+        assert!(validate_entry("hgt:60in"));
+        assert!(validate_entry("hgt:190cm"));
+        assert!(!validate_entry("hgt:190in"));
+        assert!(!validate_entry("hgt:190"));
+    }
+
+    #[test]
+    fn test_validation_hcl() {
+        assert!(validate_entry("hcl:#123abc"));
+        assert!(!validate_entry("hcl:#123abz"));
+        assert!(!validate_entry("hcl:123abc"));
+        assert!(validate_entry("hcl:#0525bb"));
+        assert!(!validate_entry("hcl:#0525bB"));
+        assert!(validate_entry("hcl:#ffffff"));
+        assert!(!validate_entry("hcl:#fffffg"));
+    }
+
+    #[test]
+    fn test_validation_ecl() {
+        assert!(validate_entry("ecl:amb"));
+        assert!(validate_entry("ecl:blu"));
+        assert!(validate_entry("ecl:brn"));
+        assert!(validate_entry("ecl:gry"));
+        assert!(validate_entry("ecl:grn"));
+        assert!(validate_entry("ecl:hzl"));
+        assert!(validate_entry("ecl:oth"));
+        assert!(!validate_entry("ecl:other"));
+        assert!(!validate_entry("ecl: blu"));
+    }
+
+    #[test]
+    fn test_validation_pid() {
+        assert!(validate_entry("pid:000000001"));
+        assert!(!validate_entry("pid:0123456789"));
     }
 }
