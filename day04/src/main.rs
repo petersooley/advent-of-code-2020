@@ -1,43 +1,84 @@
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 use std::io::BufRead;
-use std::{env, fmt, fs, io};
+use std::{env, fmt, fs, io, str};
 
 struct Passport {
-    entries: BTreeSet<String>, // ordered for Display
-    // entries: HashSet<String>,
+    entries: BTreeMap<String, String>, // ordered for Display
 }
 
 impl Passport {
     fn new() -> Self {
         Self {
-            entries: BTreeSet::new(),
+            entries: BTreeMap::new(),
         }
     }
 
     fn add_entries_from_line(&mut self, line: &str) {
-        line.split(' ').for_each(|entry| {
-            self.add_entry(entry);
-        });
+        line.split(' ').for_each(|entry| self.add_entry(entry));
     }
 
     fn add_entry(&mut self, entry: &str) {
-        let key = entry.split(':').nth(0).expect("invalid entry format").clone();
+        let mut parts = entry.split(':');
+        let key = parts.next().expect("invalid entry format: key");
+        let val = parts.next().expect("invalid entry format: val");
+
         if !Self::valid_required_key(key) {
             // just skipping invalid keys (including "cid")
             return;
         }
-        self.entries.insert(String::from(key));
+
+        self.entries.insert(String::from(key), String::from(val));
     }
 
     fn valid_required_key(key: &str) -> bool {
-        match key {
-            "byr" | "iyr" | "eyr" | "hgt" | "hcl" | "ecl" | "pid" => true,
-            _ => false,
-        }
+        matches!(key, "byr" | "iyr" | "eyr" | "hgt" | "hcl" | "ecl" | "pid")
     }
 
     fn has_sufficient_entries(&self) -> bool {
         self.entries.len() == 7
+    }
+
+    fn has_valid_entries(&self) -> bool {
+        self.has_sufficient_entries()
+            && self.entries.iter().all(|(k, v)| match k.as_str() {
+                "byr" => v
+                    .parse::<usize>()
+                    .map(|y| y >= 1920 && y <= 2020)
+                    .unwrap_or(false),
+                "iyr" => v
+                    .parse::<usize>()
+                    .map(|y| y >= 2010 && y <= 2020)
+                    .unwrap_or(false),
+                "eyr" => v
+                    .parse::<usize>()
+                    .map(|y| y >= 2020 && y <= 2030)
+                    .unwrap_or(false),
+                "hgt" => {
+                    if let Some(hstr) = v.strip_suffix("cm") {
+                        return hstr
+                            .parse::<usize>()
+                            .map(|h| h >= 150 && h <= 193)
+                            .unwrap_or(false);
+                    } else if let Some(hstr) = v.strip_suffix("in") {
+                        return hstr
+                            .parse::<usize>()
+                            .map(|h| h >= 59 && h <= 76)
+                            .unwrap_or(false);
+                    }
+                    false
+                }
+                "hcl" => v
+                    .strip_prefix("#")
+                    .and_then(|c| u32::from_str_radix(c, 16).ok())
+                    .map(|b| b <= 16777215)
+                    .unwrap_or(false),
+                "ecl" => matches!(
+                    v.as_str(),
+                    "amb" | "blu" | "brn" | "gry" | "grn" | "hzl" | "oth"
+                ),
+                "pid" => v.len() == 9 && v.chars().all(|c| c.is_numeric()),
+                _ => false,
+            })
     }
 }
 
@@ -48,7 +89,6 @@ impl fmt::Display for Passport {
         } else {
             write!(f, "invalid: ({}) {:?}", self.entries.len(), self.entries)
         }
-
     }
 }
 
@@ -64,7 +104,7 @@ fn main() -> io::Result<()> {
 
     let lines = reader.lines().map(|l| l.expect("failed to read line"));
     for line in lines {
-        if line.len() == 0 {
+        if line.is_empty() {
             total_passports += 1;
             if cur_passport.has_sufficient_entries() {
                 valid_passports += 1;
@@ -84,7 +124,10 @@ fn main() -> io::Result<()> {
     }
     println!("{}", cur_passport);
 
-    println!("{} of {} passports are valid", valid_passports, total_passports);
+    println!(
+        "{} of {} passports are valid",
+        valid_passports, total_passports
+    );
 
     Ok(())
 }
@@ -99,12 +142,14 @@ mod test {
             "byr:1937 iyr:2017 cid:147 hgt:183cm",
         ]
     }
+
     fn sample_2() -> Vec<&'static str> {
         vec![
             "iyr:2013 ecl:amb cid:350 eyr:2023 pid:028048884",
             "hcl:#cfa07d byr:1929",
         ]
     }
+
     fn sample_3() -> Vec<&'static str> {
         vec![
             "hcl:#ae17e1 iyr:2013",
@@ -113,6 +158,7 @@ mod test {
             "hgt:179cm",
         ]
     }
+
     fn sample_4() -> Vec<&'static str> {
         vec![
             "hcl:#cfa07d eyr:2025 pid:166559648",
@@ -154,7 +200,7 @@ mod test {
     }
 
     #[test]
-    fn test_add_entry () {
+    fn test_add_entry() {
         let mut p = Passport::new();
         p.add_entry("byr:1937");
         p.add_entry("iyr:2017");
@@ -164,7 +210,7 @@ mod test {
     }
 
     #[test]
-    fn test_valid () {
+    fn test_valid() {
         let mut p = Passport::new();
         p.add_entry("byr:1937");
         p.add_entry("iyr:2017");
@@ -178,7 +224,7 @@ mod test {
     }
 
     #[test]
-    fn test_invalid () {
+    fn test_invalid() {
         let mut p = Passport::new();
         p.add_entry("byr:1937");
         p.add_entry("iyr:2017");
@@ -192,7 +238,7 @@ mod test {
     }
 
     #[test]
-    fn test_valid_no_cid () {
+    fn test_valid_no_cid() {
         let mut p = Passport::new();
         p.add_entry("byr:1937");
         p.add_entry("iyr:2017");
@@ -206,7 +252,7 @@ mod test {
     }
 
     #[test]
-    fn test_invalid_no_cid () {
+    fn test_invalid_no_cid() {
         let mut p = Passport::new();
         p.add_entry("byr:1937");
         p.add_entry("iyr:2017");
