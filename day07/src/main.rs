@@ -34,11 +34,12 @@ fn find_parents(lookup: &HashMap<&String, Vec<&String>>, found: &mut HashSet<Str
     if found.contains(child) {
         return;
     }
+
     found.insert(child.clone());
 
     // recursive count
     if let Some(direct_parents) = lookup.get(child) {
-        println!("{} => {:?}", child, direct_parents);
+        // println!("{} => {:?}", child, direct_parents);
 
         for parent in direct_parents {
             find_parents(lookup, found, parent);
@@ -49,7 +50,7 @@ fn find_parents(lookup: &HashMap<&String, Vec<&String>>, found: &mut HashSet<Str
 fn count_parents(lookup: &HashMap<&String, Vec<&String>>, child: &str) -> usize {
     let mut found: HashSet<String> = HashSet::new();
     find_parents(lookup, &mut found, &String::from(child));
-    found.len()
+    found.len() - 1  // exclude initial child
 }
 
 fn flip_rules(rules: &HashMap<String, Vec<String>>) -> HashMap<&String, Vec<&String>> {
@@ -72,7 +73,7 @@ fn main() {
 
     let our_bag = String::from("shiny gold");
 
-    println!("{:?}", count_parents(&lookup, &our_bag));
+    println!("{} bag colors can contain 'shiny gold' bags", count_parents(&lookup, &our_bag));
 }
 
 #[cfg(test)]
