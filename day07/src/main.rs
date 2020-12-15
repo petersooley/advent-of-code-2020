@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 
 const INPUT: &str = include_str!("input.txt");
@@ -68,6 +69,20 @@ impl Rules {
 
         lookup
     }
+
+    fn sum_qtys(&self, start: &str) -> usize {
+        let mut sum = 1;
+        if let Some(rules) = self.0.get(start) {
+            for (inner, qty) in rules.iter() {
+                sum += qty * self.sum_qtys(inner);
+            }
+        }
+        sum
+    }
+
+    pub fn count_required(&self, start: &str) -> usize {
+        self.sum_qtys(start) - 1
+    }
 }
 
 impl OuterLookup {
@@ -104,6 +119,11 @@ fn main() {
         "{} bags can contain 'shiny gold' bags",
         lookup.count(&our_bag)
     );
+
+    println!(
+        "'shiny gold' bags must contain a total of {} bags",
+        rules.count_required("shiny gold")
+    );
 }
 
 #[cfg(test)]
@@ -123,6 +143,29 @@ mod test {
             "faded blue bags contain no other bags.",
             "dotted black bags contain no other bags.",
         ]
+    }
+
+    fn sample2<'a>() -> Vec<&'a str> {
+        vec![
+            "shiny gold bags contain 2 dark red bags.",
+            "dark red bags contain 2 dark orange bags.",
+            "dark orange bags contain 2 dark yellow bags.",
+            "dark yellow bags contain 2 dark green bags.",
+            "dark green bags contain 2 dark blue bags.",
+            "dark blue bags contain 2 dark violet bags.",
+            "dark violet bags contain no other bags.",
+        ]
+    }
+
+    #[test]
+    fn test_cost() {
+        let rules = Rules::from_lines(sample1());
+        assert_eq!(32, rules.count_required("shiny gold"));
+    }
+    #[test]
+    fn test_cost_deep() {
+        let rules = Rules::from_lines(sample2());
+        assert_eq!(126, rules.count_required("shiny gold"));
     }
 
     #[test]
