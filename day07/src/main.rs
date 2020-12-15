@@ -2,78 +2,108 @@ use std::collections::{HashMap, HashSet};
 
 const INPUT: &str = include_str!("input.txt");
 
-fn parse_rule(line: &str) -> (String, Vec<String>) {
-    let mut children: Vec<String> = vec![];
+/// Structure holding all the bag rules
+///
+///```
+/// outer => [(inner, qty), ..]
+/// ```
+#[derive(Default)]
+struct Rules(HashMap<String, HashMap<String, usize>>);
 
-    let mut parts = line.split_ascii_whitespace();
-    let mut bag = String::from(parts.next().expect("missing adj of bag name"));
-    bag.push_str(" ");
-    bag.push_str(parts.next().expect("missing color of bag name"));
+/// Structure holding a lookup of which bags can contain which
+///
+/// ```
+/// inner => [outer, ..]
+/// ```
+#[derive(Default)]
+struct OuterLookup(HashMap<String, HashSet<String>>);
 
-    parts.next().expect("missing 'bags' marker of bag");
-    parts.next().expect("missing 'contains' marker");
+impl Rules {
+    pub fn from_lines(lines: Vec<&str>) -> Rules {
+        let mut rules = Rules::default();
 
-    while let Some(count) = parts.next() {
-        if count.starts_with("no") {
-            break;
+        for line in lines {
+            rules.parse_rule(line);
         }
-
-        let mut child = String::from(parts.next().expect("missing adj of child name"));
-        child.push_str(" ");
-        child.push_str(parts.next().expect("missing color of child name"));
-        children.push(child);
-
-        parts.next().expect("missing 'bags' marker of child");
+        rules
     }
 
-    (bag, children)
-}
+    pub fn parse_rule(&mut self, line: &str) {
+        let mut parts = line.split_ascii_whitespace();
+        let mut outer = String::from(parts.next().expect("missing adj of bag name"));
+        outer.push_str(" ");
+        outer.push_str(parts.next().expect("missing color of bag name"));
 
-fn find_parents(lookup: &HashMap<&String, Vec<&String>>, found: &mut HashSet<String>, child: &String) {
-    // skip items we've already counted
-    if found.contains(child) {
-        return;
-    }
+        parts.next().expect("missing 'bags' marker of bag");
+        parts.next().expect("missing 'contains' marker");
 
-    found.insert(child.clone());
+        let rules = self.0.entry(outer).or_default();
 
-    // recursive count
-    if let Some(direct_parents) = lookup.get(child) {
-        // println!("{} => {:?}", child, direct_parents);
+        while let Some(count) = parts.next() {
+            if count.starts_with("no") {
+                // should only happen on first iteration if it's gonna happen
+                break;
+            }
 
-        for parent in direct_parents {
-            find_parents(lookup, found, parent);
-        }
-    }
-}
+            let qty = count.parse::<usize>().unwrap_or(0);
 
-fn count_parents(lookup: &HashMap<&String, Vec<&String>>, child: &str) -> usize {
-    let mut found: HashSet<String> = HashSet::new();
-    find_parents(lookup, &mut found, &String::from(child));
-    found.len() - 1  // exclude initial child
-}
+            let mut inner = String::from(parts.next().expect("missing adj of child name"));
+            inner.push_str(" ");
+            inner.push_str(parts.next().expect("missing color of child name"));
 
-fn flip_rules(rules: &HashMap<String, Vec<String>>) -> HashMap<&String, Vec<&String>> {
-    let mut lookup: HashMap<&String, Vec<&String>> = HashMap::new();
-    for (parent, children) in rules.iter() {
-        for child in children.iter() {
-            let entry = lookup.entry(child).or_insert_with(|| vec![]);
-            entry.push(parent);
+            rules.insert(inner, qty);
+
+            parts.next().expect("missing 'bags' marker of child");
         }
     }
-    lookup
+
+    fn to_parent_lookup(&self) -> OuterLookup {
+        let mut lookup = OuterLookup::default();
+        for (outer, inners) in self.0.iter() {
+            for inner in inners.keys() {
+                let entry = lookup.0.entry(inner.clone()).or_default();
+                entry.insert(outer.clone());
+            }
+        }
+
+        lookup
+    }
+}
+
+impl OuterLookup {
+    fn find_outers(&self, inner: &String, found: &mut HashSet<String>) {
+        if found.contains(inner) {
+            return;
+        }
+
+        found.insert(inner.clone());
+
+        if let Some(direct_outers) = self.0.get(inner) {
+            for outer in direct_outers {
+                self.find_outers(outer, found);
+            }
+        }
+    }
+
+    pub fn count(&self, inner: &str) -> usize {
+        let mut found = HashSet::default();
+        self.find_outers(&String::from(inner), &mut found);
+        found.len() - 1 // exclude initial child
+    }
 }
 
 fn main() {
-    // rules: parent => children
-    let rules: HashMap<String, Vec<String>> = INPUT.lines().map(|l| parse_rule(l)).collect();
+    let mut rules = Rules::default();
+    INPUT.lines().for_each(|l| rules.parse_rule(l));
 
-    // rules flipped: child => parents (direct)
-    let mut lookup = flip_rules(&rules);
+    let lookup = rules.to_parent_lookup();
 
     let our_bag = String::from("shiny gold");
 
-    println!("{} bag colors can contain 'shiny gold' bags", count_parents(&lookup, &our_bag));
+    println!(
+        "{} bags can contain 'shiny gold' bags",
+        lookup.count(&our_bag)
+    );
 }
 
 #[cfg(test)]
@@ -81,45 +111,58 @@ mod test {
     use super::*;
     use std::iter::FromIterator;
 
+    fn sample1<'a>() -> Vec<&'a str> {
+        vec![
+            "light red bags contain 1 bright white bag, 2 muted yellow bags.",
+            "dark orange bags contain 3 bright white bags, 4 muted yellow bags.",
+            "bright white bags contain 1 shiny gold bag.",
+            "muted yellow bags contain 2 shiny gold bags, 9 faded blue bags.",
+            "shiny gold bags contain 1 dark olive bag, 2 vibrant plum bags.",
+            "dark olive bags contain 3 faded blue bags, 4 dotted black bags.",
+            "vibrant plum bags contain 5 faded blue bags, 6 dotted black bags.",
+            "faded blue bags contain no other bags.",
+            "dotted black bags contain no other bags.",
+        ]
+    }
 
     #[test]
     fn test_simple() {
-        let sample = HashMap::from_iter(vec![
-            (String::from("blue"), vec![String::from("red"), String::from("green")]),
+        let rules = Rules::from_lines(vec![
+            "sky blue bags contain 3 dark red bags, 1 mint green bag",
         ]);
-        let lookup = flip_rules(&sample);
+        let lookup = rules.to_parent_lookup();
 
-        assert_eq!(count_parents(&lookup, "red"), 1);
-        assert_eq!(count_parents(&lookup, "green"), 1);
-        assert_eq!(count_parents(&lookup, "blue"), 0);
+        assert_eq!(1, lookup.count("dark red"));
+        assert_eq!(1, lookup.count("mint green"));
+        assert_eq!(0, lookup.count("sky blue"));
     }
 
     #[test]
     fn test_deeper() {
-        let sample = HashMap::from_iter(vec![
-            (String::from("blue"), vec![String::from("red"), String::from("green")]),
-            (String::from("red"), vec![String::from("orange")]),
+        let rules = Rules::from_lines(vec![
+            "sky blue bags contain 3 dark red bags, 1 mint green bag",
+            "dark red bags contain 2 ugly brown bags",
+            "ugly brown bags contain 4 dirty yellow bags",
         ]);
-        let lookup = flip_rules(&sample);
+        let lookup = rules.to_parent_lookup();
 
-        assert_eq!(count_parents(&lookup, "red"), 1);
-        assert_eq!(count_parents(&lookup, "green"), 1);
-        assert_eq!(count_parents(&lookup, "blue"), 0);
-        assert_eq!(count_parents(&lookup, "orange"), 2);
+        assert_eq!(3, lookup.count("dirty yellow"));
+        assert_eq!(1, lookup.count("dark red"));
+        assert_eq!(1, lookup.count("mint green"));
+        assert_eq!(2, lookup.count("ugly brown"));
     }
 
     #[test]
     fn test_cycles() {
-        let sample = HashMap::from_iter(vec![
-            (String::from("blue"), vec![String::from("red"), String::from("green")]),
-            (String::from("red"), vec![String::from("orange")]),
-            (String::from("green"), vec![String::from("orange")]),
+        let rules = Rules::from_lines(vec![
+            "sky blue bags contain 3 dark red bags, 1 mint green bag",
+            "dark red bags contain 2 ugly brown bags",
+            "ugly brown bags contain 4 dirty yellow bags",
+            "faded gray bags contains 4 dirty yellow bags",
         ]);
-        let lookup = flip_rules(&sample);
+        let lookup = rules.to_parent_lookup();
 
-        assert_eq!(count_parents(&lookup, "red"), 1);
-        assert_eq!(count_parents(&lookup, "green"), 1);
-        assert_eq!(count_parents(&lookup, "blue"), 0);
-        assert_eq!(count_parents(&lookup, "orange"), 3);
+        assert_eq!(4, lookup.count("dirty yellow"));
+        assert_eq!(0, lookup.count("faded gray"));
     }
 }
